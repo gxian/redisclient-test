@@ -1,17 +1,12 @@
 cmake_minimum_required(VERSION 2.8)
-project(GuildService)
+project(RedisClientTest)
 
 set(BOOST_COMPONENTS system thread date_time chrono atomic)
 set(CMAKE_CXX_FLAGS   "${CMAKE_CXX_FLAGS} -std=c++11")
-list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/dep/xl/cmake")
 add_definitions(-DUSE_BOOST_ASIO=1)
 
 find_package(Boost 1.55.0 COMPONENTS ${BOOST_COMPONENTS} REQUIRED)
 include_directories(SYSTEM ${Boost_INCLUDE_DIR})
-find_package(MySQL REQUIRED)
-include_directories(SYSTEM ${MySQL_INCLUDE_DIR})
-find_package(OpenSSL REQUIRED)
-include_directories(SYSTEM ${OPENSSL_INCLUDE_DIR})
 
 if(MSVC)
     add_definitions(-D_SCL_SECURE_NO_WARNINGS -wd4996 -wd4819) 
@@ -46,29 +41,16 @@ endif()
 
 include_directories("${PROJECT_SOURCE_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}/dep")
-include_directories("${PROJECT_SOURCE_DIR}/dep/xl/dep")
-include_directories("${PROJECT_SOURCE_DIR}/dep/xl/dep/amy")
 file(GLOB SRC *.cpp)
-file(GLOB INPORT_SRC ./inportRecord/*.cpp)
 
 # service bianry
-add_executable(guild_service 
+add_executable(redisclient_test 
 	${SRC}
 )
-add_executable(inport_service 
-	${INPORT_SRC}
-)
 
-target_link_libraries(guild_service  ${OPENSSL_LIBRARIES} ${Boost_LIBRARIES} mysqlclient)
-set_target_properties(guild_service
+target_link_libraries(redisclient_test ${Boost_LIBRARIES})
+set_target_properties(redisclient_test
     PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin"
 )
-
-target_link_libraries(inport_service  ${OPENSSL_LIBRARIES} ${Boost_LIBRARIES} mysqlclient)
-set_target_properties(inport_service
-    PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin"
-)
-
 
