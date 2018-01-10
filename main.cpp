@@ -50,6 +50,22 @@ public:
         client->connect(ep, callback);
     }
 
+    void
+    OnRedisReconnect(boost::system::error_code ec,
+                     std::shared_ptr<redisclient::RedisAsyncClient> &client,
+                     std::function<void(boost::system::error_code)> cb) {
+        if (ec) {
+        //     StartTimer(kReconnectTime, [this, &client, cb]() {
+        //         RedisConnector(
+        //             client, [this, &client, cb](boost::system::error_code ec) {
+        //                 OnRedisReconnect(ec, client, cb);
+        //             });
+        //     });
+        } else {
+            cb(ec);
+        }
+    }
+
 private:
     std::shared_ptr<boost::asio::io_service> ios_;
     std::string host_;
