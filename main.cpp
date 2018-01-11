@@ -1,9 +1,87 @@
 #include "redisclient/redisasyncclient.h"
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/ip/address.hpp>
+#include <chrono>
+#include <cinttypes>
+#include <ctime>
+#include <iostream>
+#include <ratio>
 
 class RedisClientPool {
 public:
+    RedisClientPool(std::shared_ptr<boost::asio::io_service> ios,
+                    std::string pw, std::string host = std::string("127.0.0.1"),
+                    int size = 64, int port = 6379)
+        : ios_(ios), host_(host), pw_(pw), port_(6379), size_(64) {}
+
+    void Connect(std::function<void(bool)> cb) {
+        pool_.reserve(size_);
+        auto counter = new int(size_);
+        auto report = [cb, counter](boost::system::error_code ec) {
+            static int success = *counter;
+            if (!ec) {
+                --success;
+            }
+            if (--(*counter) == 0) {
+                delete counter;
+                if (success == 0) {
+                    cb(true);
+                } else {
+                    cb(false);
+                }
+            }
+        };
+        for (int i = 0; i < size_; ++i) {
+            std::shared_ptr<redisclient::RedisAsyncClient> cli;
+            RedisConnector(cli, report);
+            pool_.push_back(std::move(cli));
+        }
+    }
+
+    bool Command(std::string cmd, std::deque<std::string> args,
+                 std::function<void(bool, std::deque<std::string>)> cb) {
+        static uint16_t cursor = 0;
+        auto cli = pool_[++cursor % size_];
+        if (!cli->isConnected()) {
+            return false;
+        }
+        std::deque<redisclient::RedisBuffer> bufs;
+        for (auto &i : args) {
+            bufs.push_back(i);
+        }
+        auto handler = [cmd, args, cb](redisclient::RedisValue val) {
+            try {
+                std::deque<std::string> vals;
+                if (val.isOk()) {
+                    auto append = [&vals](redisclient::RedisValue &val) {
+                        if (val.isString()) {
+                            vals.push_back(val.toString());
+                        } else if (val.isInt()) {
+                            vals.push_back(std::to_string(val.toInt()));
+                        } else if (val.isNull()) {
+                            // nothing
+                        } else {
+                        }
+                    };
+                    if (val.isArray()) {
+                        for (auto &i : val.toArray()) {
+                            append(i);
+                        }
+                    } else {
+                        append(val);
+                    }
+                } else {
+                }
+
+                cb(val.isOk(), vals);
+            } catch (const std::exception &e) {
+                cb(false, std::deque<std::string>());
+            }
+        };
+        cli->command(cmd, std::ref(bufs), handler);
+        return true;
+    }
+
     void RedisConnector(std::shared_ptr<redisclient::RedisAsyncClient> &client,
                         std::function<void(boost::system::error_code)> cb) {
         client.reset(new redisclient::RedisAsyncClient(*ios_));
@@ -12,23 +90,27 @@ public:
         }
         auto callback = cb;
         if (!pw_.empty()) {
-            auto auth = [this, &client, cb](boost::system::error_code ec) {
-                if (!ec) {
-                    client->command(
-                        "AUTH", {pw_}, [ec, cb](redisclient::RedisValue val) {
-                            if (val.isError()) {
-                                cb(boost::system::error_code());
-                            } else {
-                                cb(boost::system::error_code(
-                                    0, boost::system::system_category()));
-                            }
+            auto auth =
+                [this,
+                 cb](boost::system::error_code ec,
+                     std::shared_ptr<redisclient::RedisAsyncClient> client) {
+                    if (!ec) {
+                        client->command(
+                            "AUTH", {pw_},
+                            [ec, cb](redisclient::RedisValue val) {
+                                if (val.isError()) {
+                                    cb(boost::system::error_code());
+                                } else {
+                                    cb(boost::system::error_code(
+                                        0, boost::system::system_category()));
+                                }
 
-                        });
-                } else {
-                    cb(ec);
-                }
-            };
-            callback = auth;
+                            });
+                    } else {
+                        cb(ec);
+                    }
+                };
+            callback = std::bind(auth, std::placeholders::_1, client);
         }
         // 解析endpoint
         boost::asio::ip::tcp::resolver resolver(*ios_);
@@ -55,12 +137,13 @@ public:
                      std::shared_ptr<redisclient::RedisAsyncClient> &client,
                      std::function<void(boost::system::error_code)> cb) {
         if (ec) {
-        //     StartTimer(kReconnectTime, [this, &client, cb]() {
-        //         RedisConnector(
-        //             client, [this, &client, cb](boost::system::error_code ec) {
-        //                 OnRedisReconnect(ec, client, cb);
-        //             });
-        //     });
+            //     StartTimer(kReconnectTime, [this, &client, cb]() {
+            //         RedisConnector(
+            //             client, [this, &client, cb](boost::system::error_code
+            //             ec) {
+            //                 OnRedisReconnect(ec, client, cb);
+            //             });
+            //     });
         } else {
             cb(ec);
         }
@@ -68,9 +151,52 @@ public:
 
 private:
     std::shared_ptr<boost::asio::io_service> ios_;
+    std::vector<std::shared_ptr<redisclient::RedisAsyncClient>> pool_;
     std::string host_;
     std::string pw_;
     int port_;
+    uint16_t size_;
 };
 
-int main(int argc, char *argv[]) { return 0; }
+int main(int argc, char *argv[]) {
+    if (argc != 3) {
+        return 1;
+    }
+    auto total = static_cast<int>(std::atoi(argv[1]));
+    auto conn = static_cast<int>(std::atoi(argv[2]));
+    auto ios =
+        std::shared_ptr<boost::asio::io_service>(new boost::asio::io_service);
+    RedisClientPool pool(ios, "q1w2e3XG", "127.0.0.1", conn);
+    pool.Connect([&pool, total](bool res) {
+        std::cout << "connect result: " << res << std::endl;
+        using namespace std::chrono;
+        high_resolution_clock::time_point t1 = high_resolution_clock::now();
+        auto timer = [total, t1]() {
+            static int cnt = total;
+            --cnt;
+            if (cnt == 0) {
+                high_resolution_clock::time_point t2 =
+                    high_resolution_clock::now();
+                duration<double> time_span =
+                    duration_cast<duration<double>>(t2 - t1);
+                std::cout << "time cost: " << time_span.count() << std::endl;
+            }
+        };
+        for (int i = 0; i < total; ++i) {
+            // std::cout << "set key: " << i << std::endl;
+            std::string script =
+                R"lua( return {redis.call("set", KEYS[1], KEYS[1]), KEYS[1]} )lua";
+            pool.Command(
+                "EVAL", {script, "1", std::to_string(i)},
+                // pool.Command("SET", {std::to_string(i), std::to_string(i)},
+                [i, timer](bool res, std::deque<std::string> vals) {
+                    std::cout << "on key: " << i << " set, res: " << res
+                              << " check: " << std::atoi(vals[1].c_str())
+                              << std::endl;
+                    timer();
+                });
+        }
+    });
+    ios->run();
+    return 0;
+}
