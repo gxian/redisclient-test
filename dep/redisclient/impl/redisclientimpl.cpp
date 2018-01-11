@@ -9,6 +9,7 @@
 #include <boost/asio/write.hpp>
 
 #include <algorithm>
+#include <iostream>
 
 #include "redisclientimpl.h"
 
@@ -343,7 +344,7 @@ void RedisClientImpl::asyncWrite(const boost::system::error_code &ec, size_t)
     if( dataQueued.empty() == false )
     {
         std::vector<boost::asio::const_buffer> buffers(dataQueued.size());
-
+        std::cout << "==== " << dataQueued.size();
         for(size_t i = 0; i < dataQueued.size(); ++i)
         {
             buffers[i] = boost::asio::buffer(dataQueued[i]);
@@ -495,6 +496,10 @@ RedisValue RedisClientImpl::syncReadResponse(
 void RedisClientImpl::doAsyncCommand(std::vector<char> buff,
                                      std::function<void(RedisValue)> handler)
 {
+    for (auto &i : buff) {
+        std::cout << i;
+    }
+    std::cout << " --- " << std::endl;
     handlers.push( std::move(handler) );
     dataQueued.push_back(std::move(buff));
 

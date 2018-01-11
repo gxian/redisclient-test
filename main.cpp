@@ -6,6 +6,7 @@
 #include <ctime>
 #include <iostream>
 #include <ratio>
+#include <thread>
 
 class RedisClientPool {
 public:
@@ -183,7 +184,7 @@ int main(int argc, char *argv[]) {
             }
         };
         for (int i = 0; i < total; ++i) {
-            // std::cout << "set key: " << i << std::endl;
+            std::cout << "set key: " << i << std::endl;
             std::string script =
                 R"lua( return {redis.call("set", KEYS[1], KEYS[1]), KEYS[1]} )lua";
             pool.Command(
@@ -195,6 +196,7 @@ int main(int argc, char *argv[]) {
                               << std::endl;
                     timer();
                 });
+            // std::this_thread::sleep_for(std::chrono::milliseconds(20));
         }
     });
     ios->run();
