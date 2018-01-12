@@ -11,9 +11,7 @@
 class RedisClientPool {
 public:
     RedisClientPool(std::shared_ptr<boost::asio::io_service> ios,
-                    std::string pw = std::string("XIAN2017lai"),
-                    std::string host = std::string(
-                        "r-wz9d50d546201894.redis.rds.aliyuncs.com"),
+                    std::string pw, std::string host = std::string("127.0.0.1"),
                     int size = 64, int port = 6379)
         : ios_(ios), host_(host), pw_(pw), port_(6379), size_(64) {}
 
@@ -224,11 +222,13 @@ void guild_member_test(RedisClientPool &pool, int total,
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 3) {
+    if (argc != 5) {
         return 1;
     }
     auto total = static_cast<int>(std::atoi(argv[1]));
     auto conn = static_cast<int>(std::atoi(argv[2]));
+    std::string pw = argv[3];
+    std::string host = argv[4];
     auto ios =
         std::shared_ptr<boost::asio::io_service>(new boost::asio::io_service);
 
@@ -244,7 +244,7 @@ int main(int argc, char *argv[]) {
             std::cout << "time cost: " << time_span.count() << std::endl;
         }
     };
-    RedisClientPool pool(ios, "q1w2e3XG", "127.0.0.1", conn);
+    RedisClientPool pool(ios, pw, host, conn);
     pool.Connect([&pool, total, counter](bool res) {
         std::cout << "connect result: " << res << std::endl;
         guild_member_test(pool, total, counter);
