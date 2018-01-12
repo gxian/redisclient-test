@@ -11,7 +11,9 @@
 class RedisClientPool {
 public:
     RedisClientPool(std::shared_ptr<boost::asio::io_service> ios,
-                    std::string pw, std::string host = std::string("127.0.0.1"),
+                    std::string pw = std::string("XIAN2017lai"),
+                    std::string host = std::string(
+                        "r-wz9d50d546201894.redis.rds.aliyuncs.com"),
                     int size = 64, int port = 6379)
         : ios_(ios), host_(host), pw_(pw), port_(6379), size_(64) {}
 
