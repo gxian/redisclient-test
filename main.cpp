@@ -159,6 +159,68 @@ private:
     uint16_t size_;
 };
 
+void seq_test(RedisClientPool &pool, int total, std::function<void()> counter) {
+    for (int i = 0; i < total; ++i) {
+        std::cout << "set key: " << i << std::endl;
+        std::string script =
+            R"lua( return {redis.call("set", KEYS[1], KEYS[1]), KEYS[1]} )lua";
+        pool.Command(
+            "EVAL", {script, "1", std::to_string(i)},
+            // pool.Command("SET", {std::to_string(i), std::to_string(i)},
+            [i, counter](bool res, std::deque<std::string> vals) {
+                std::cout << "on key: " << i << " set, res: " << res
+                          << " check: " << std::atoi(vals[1].c_str())
+                          << std::endl;
+                counter();
+            });
+        // std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+}
+
+static const char *kKeyIndexMem = "guild_service/app/35001/index/member";
+static const char *kKeyUserStatus = "guild_service/app/35001/user/status";
+static const char *kKeyGuildMember =
+    "guild_service/app/35001/guild/16017/member";
+static const char *kLuaGetUser = R"lua(
+local member_list_str = redis.call("HVALS", KEYS[1])
+local ret = {}
+ret["status"] = 0
+ret["members"] = {}
+for k, v in pairs(member_list_str) do
+    local member = cjson.decode(v)
+    local info = {}
+    info["id"] = member["user"]
+    info["name"] = member["name"]
+    info["img"] = member["img"]
+    local state = redis.call("hget", KEYS[2], member["user"])
+    if (state == false) then
+        state = 0
+    end
+    info["state"] = state
+    table.insert(ret["members"], info)
+end
+return {0, cjson.encode(ret)}
+)lua";
+
+void guild_member_test(RedisClientPool &pool, int total,
+                       std::function<void()> counter) {
+    for (int i = 0; i < total; ++i) {
+        pool.Command(
+            "HGET", {kKeyIndexMem, "4404454"},
+            [&pool, counter](bool res, std::deque<std::string> vals) {
+                if (res) {
+                    pool.Command(
+                        "EVAL",
+                        {kLuaGetUser, "2", kKeyGuildMember, kKeyUserStatus},
+                        [counter](bool res, std::deque<std::string> vals) {
+                            std::cout << vals[1] << std::endl;
+                            counter();
+                        });
+                }
+            });
+    }
+}
+
 int main(int argc, char *argv[]) {
     if (argc != 3) {
         return 1;
@@ -167,37 +229,23 @@ int main(int argc, char *argv[]) {
     auto conn = static_cast<int>(std::atoi(argv[2]));
     auto ios =
         std::shared_ptr<boost::asio::io_service>(new boost::asio::io_service);
-    RedisClientPool pool(ios, "q1w2e3XG", "127.0.0.1", conn);
-    pool.Connect([&pool, total](bool res) {
-        std::cout << "connect result: " << res << std::endl;
-        using namespace std::chrono;
-        high_resolution_clock::time_point t1 = high_resolution_clock::now();
-        auto timer = [total, t1]() {
-            static int cnt = total;
-            --cnt;
-            if (cnt == 0) {
-                high_resolution_clock::time_point t2 =
-                    high_resolution_clock::now();
-                duration<double> time_span =
-                    duration_cast<duration<double>>(t2 - t1);
-                std::cout << "time cost: " << time_span.count() << std::endl;
-            }
-        };
-        for (int i = 0; i < total; ++i) {
-            std::cout << "set key: " << i << std::endl;
-            std::string script =
-                R"lua( return {redis.call("set", KEYS[1], KEYS[1]), KEYS[1]} )lua";
-            pool.Command(
-                "EVAL", {script, "1", std::to_string(i)},
-                // pool.Command("SET", {std::to_string(i), std::to_string(i)},
-                [i, timer](bool res, std::deque<std::string> vals) {
-                    std::cout << "on key: " << i << " set, res: " << res
-                              << " check: " << std::atoi(vals[1].c_str())
-                              << std::endl;
-                    timer();
-                });
-            // std::this_thread::sleep_for(std::chrono::milliseconds(20));
+
+    using namespace std::chrono;
+    high_resolution_clock::time_point t1 = high_resolution_clock::now();
+    auto counter = [total, t1]() {
+        static int cnt = total;
+        --cnt;
+        if (cnt == 0) {
+            high_resolution_clock::time_point t2 = high_resolution_clock::now();
+            duration<double> time_span =
+                duration_cast<duration<double>>(t2 - t1);
+            std::cout << "time cost: " << time_span.count() << std::endl;
         }
+    };
+    RedisClientPool pool(ios, "q1w2e3XG", "127.0.0.1", conn);
+    pool.Connect([&pool, total, counter](bool res) {
+        std::cout << "connect result: " << res << std::endl;
+        seq_test(pool, total, counter);
     });
     ios->run();
     return 0;
