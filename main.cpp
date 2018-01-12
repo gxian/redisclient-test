@@ -245,7 +245,7 @@ int main(int argc, char *argv[]) {
     RedisClientPool pool(ios, "q1w2e3XG", "127.0.0.1", conn);
     pool.Connect([&pool, total, counter](bool res) {
         std::cout << "connect result: " << res << std::endl;
-        seq_test(pool, total, counter);
+        guild_member_test(pool, total, counter);
     });
     ios->run();
     return 0;
