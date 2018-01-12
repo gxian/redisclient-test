@@ -213,7 +213,7 @@ void guild_member_test(RedisClientPool &pool, int total,
                         "EVAL",
                         {kLuaGetUser, "2", kKeyGuildMember, kKeyUserStatus},
                         [counter](bool res, std::deque<std::string> vals) {
-                            std::cout << vals[1] << std::endl;
+                            // std::cout << vals[1] << std::endl;
                             counter();
                         });
                 }
