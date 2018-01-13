@@ -235,7 +235,7 @@ int main(int argc, char *argv[]) {
 
     using namespace std::chrono;
     high_resolution_clock::time_point t1 = high_resolution_clock::now();
-    auto counter = [total, t1]() {
+    auto counter = [ios, total, t1]() {
         static int cnt = total;
         --cnt;
         if (cnt == 0) {
@@ -243,6 +243,7 @@ int main(int argc, char *argv[]) {
             duration<double> time_span =
                 duration_cast<duration<double>>(t2 - t1);
             std::cout << "time cost: " << time_span.count() << std::endl;
+            ios->stop();
         }
     };
     RedisClientPool pool(ios, pw, host, conn);
