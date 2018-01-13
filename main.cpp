@@ -198,6 +198,7 @@ for k, v in pairs(member_list_str) do
     end
     info["state"] = state
     table.insert(ret["members"], info)
+    break
 end
 return {0, cjson.encode(ret)}
 )lua";
