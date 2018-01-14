@@ -1,4 +1,5 @@
 #include "redisclient/redisasyncclient.h"
+#include "pistache-promise/async.h"
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/ip/address.hpp>
 #include <chrono>
@@ -226,6 +227,7 @@ int main(int argc, char *argv[]) {
     if (argc != 5) {
         return 1;
     }
+    Pistache::Async::Promise<void> prom([=](Pistache::Async::Resolver& resolve, Pistache::Async::Rejection& reject) {});
     auto total = static_cast<int>(std::atoi(argv[1]));
     auto conn = static_cast<int>(std::atoi(argv[2]));
     std::string pw = argv[3];
