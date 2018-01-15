@@ -1,5 +1,5 @@
-#include "redisclient/redisasyncclient.h"
 #include "pistache-promise/async.h"
+#include "redisclient/redisasyncclient.h"
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/ip/address.hpp>
 #include <chrono>
@@ -38,6 +38,18 @@ public:
             RedisConnector(cli, report);
             pool_.push_back(std::move(cli));
         }
+    }
+
+    Pistache::Async::Promise<std::pair<bool, std::deque<std::string>>>
+    PCommand(std::string cmd, std::deque<std::string> args) {
+        return Pistache::Async::Promise<
+            std::pair<bool, std::deque<std::string>>>(
+            [&, this](Pistache::Async::Resolver &resolve,
+                      Pistache::Async::Rejection &reject) {
+                Command(cmd, args, [&](bool res, std::deque<std::string> vals) {
+                    resolve(std::make_pair(res, vals));
+                });
+            });
     }
 
     bool Command(std::string cmd, std::deque<std::string> args,
@@ -163,17 +175,22 @@ private:
 void seq_test(RedisClientPool &pool, int total, std::function<void()> counter) {
     for (int i = 0; i < total; ++i) {
         std::cout << "set key: " << i << std::endl;
-        std::string script =
-            R"lua( return {redis.call("set", KEYS[1], KEYS[1]), KEYS[1]} )lua";
-        pool.Command(
-            "EVAL", {script, "1", std::to_string(i)},
-            // pool.Command("SET", {std::to_string(i), std::to_string(i)},
-            [i, counter](bool res, std::deque<std::string> vals) {
-                std::cout << "on key: " << i << " set, res: " << res
-                          << " check: " << std::atoi(vals[1].c_str())
-                          << std::endl;
-                counter();
-            });
+        pool.PCommand("SET", {std::to_string(i), std::to_string(i)})
+            .then([i](std::pair<bool, std::deque<std::string>> res) {},
+                  [](std::exception_ptr ptr) {});
+
+        // std::string script =
+        //     R"lua( return {redis.call("set", KEYS[1], KEYS[1]), KEYS[1]}
+        //     )lua";
+        // pool.Command(
+        //     "EVAL", {script, "1", std::to_string(i)},
+        //     // pool.Command("SET", {std::to_string(i), std::to_string(i)},
+        //     [i, counter](bool res, std::deque<std::string> vals) {
+        //         std::cout << "on key: " << i << " set, res: " << res
+        //                   << " check: " << std::atoi(vals[1].c_str())
+        //                   << std::endl;
+        //         counter();
+        //     });
         // std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
 }
@@ -207,6 +224,8 @@ return {0, cjson.encode(ret)}
 void guild_member_test(RedisClientPool &pool, int total,
                        std::function<void()> counter) {
     for (int i = 0; i < total; ++i) {
+        // auto procomm = Pistache::Async::Promise<std::pair<bool,
+        // std::deque<std::string>>();
         pool.Command(
             "HGET", {kKeyIndexMem, "4404454"},
             [&pool, counter](bool res, std::deque<std::string> vals) {
@@ -227,7 +246,8 @@ int main(int argc, char *argv[]) {
     if (argc != 5) {
         return 1;
     }
-    Pistache::Async::Promise<void> prom([=](Pistache::Async::Resolver& resolve, Pistache::Async::Rejection& reject) {});
+    // Pistache::Async::Promise<void> prom([=](Pistache::Async::Resolver&
+    // resolve, Pistache::Async::Rejection& reject) {});
     auto total = static_cast<int>(std::atoi(argv[1]));
     auto conn = static_cast<int>(std::atoi(argv[2]));
     std::string pw = argv[3];
