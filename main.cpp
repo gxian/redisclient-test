@@ -40,15 +40,25 @@ public:
         }
     }
 
+    struct Wrap {
+        Pistache::Async::Resolver resolve;
+        Pistache::Async::Rejection reject;
+        Wrap(Pistache::Async::Resolver res, Pistache::Async::Rejection rej)
+            : resolve(std::move(res)), reject(std::move(rej)) {}
+    };
+
     Pistache::Async::Promise<std::pair<bool, std::deque<std::string>>>
     PCommand(std::string cmd, std::deque<std::string> args) {
         return Pistache::Async::Promise<
             std::pair<bool, std::deque<std::string>>>(
             [&, this](Pistache::Async::Resolver &resolve,
                       Pistache::Async::Rejection &reject) {
+                auto w = new Wrap(std::move(resolve), std::move(reject));
                 Command(cmd, args, [&](bool res, std::deque<std::string> vals) {
-                    resolve(std::make_pair(res, vals));
+                    w->resolve(std::make_pair(res, vals));
+                    delete w;
                 });
+
             });
     }
 
@@ -176,8 +186,11 @@ void seq_test(RedisClientPool &pool, int total, std::function<void()> counter) {
     for (int i = 0; i < total; ++i) {
         std::cout << "set key: " << i << std::endl;
         pool.PCommand("SET", {std::to_string(i), std::to_string(i)})
-            .then([i](std::pair<bool, std::deque<std::string>> res) {},
-                  [](std::exception_ptr ptr) {});
+            .then(
+                [i, counter](std::pair<bool, std::deque<std::string>> res) {
+                    counter();
+                },
+                [](std::exception_ptr ptr) {});
 
         // std::string script =
         //     R"lua( return {redis.call("set", KEYS[1], KEYS[1]), KEYS[1]}
@@ -271,7 +284,8 @@ int main(int argc, char *argv[]) {
     RedisClientPool pool(ios, pw, host, conn);
     pool.Connect([&pool, total, counter](bool res) {
         std::cout << "connect result: " << res << std::endl;
-        guild_member_test(pool, total, counter);
+        // guild_member_test(pool, total, counter);
+        seq_test(pool, total, counter);
     });
     ios->run();
     return 0;
