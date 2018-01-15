@@ -54,7 +54,7 @@ public:
             [&, this](Pistache::Async::Resolver &resolve,
                       Pistache::Async::Rejection &reject) {
                 auto w = new Wrap(std::move(resolve), std::move(reject));
-                Command(cmd, args, [&](bool res, std::deque<std::string> vals) {
+                Command(cmd, args, [w](bool res, std::deque<std::string> vals) {
                     w->resolve(std::make_pair(res, vals));
                     delete w;
                 });
@@ -184,13 +184,18 @@ private:
 
 void seq_test(RedisClientPool &pool, int total, std::function<void()> counter) {
     for (int i = 0; i < total; ++i) {
-        std::cout << "set key: " << i << std::endl;
+        // std::cout << "set key: " << i << std::endl;
         pool.PCommand("SET", {std::to_string(i), std::to_string(i)})
             .then(
                 [i, counter](std::pair<bool, std::deque<std::string>> res) {
                     counter();
                 },
                 [](std::exception_ptr ptr) {});
+
+        // pool.Command("SET", {std::to_string(i), std::to_string(i)},
+        //              [i, counter](bool res, std::deque<std::string> vals) {
+        //                  counter();
+        //              });
 
         // std::string script =
         //     R"lua( return {redis.call("set", KEYS[1], KEYS[1]), KEYS[1]}
