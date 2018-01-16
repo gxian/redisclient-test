@@ -187,10 +187,19 @@ void seq_test(RedisClientPool &pool, int total, std::function<void()> counter) {
         // std::cout << "set key: " << i << std::endl;
         pool.PCommand("SET", {std::to_string(i), std::to_string(i)})
             .then(
-                [i, counter](std::pair<bool, std::deque<std::string>> res) {
+                [&pool, i,
+                 counter](std::pair<bool, std::deque<std::string>> res) {
+                    // counter();
+                    return pool.PCommand(
+                        "SET", {std::to_string(i), std::to_string(i)});
+                },
+                [counter](std::exception_ptr ptr) {})
+            .then(
+                [&pool, i,
+                 counter](std::pair<bool, std::deque<std::string>> res) {
                     counter();
                 },
-                [](std::exception_ptr ptr) {});
+                [counter](std::exception_ptr ptr) {});
 
         // pool.Command("SET", {std::to_string(i), std::to_string(i)},
         //              [i, counter](bool res, std::deque<std::string> vals) {
