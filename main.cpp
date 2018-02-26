@@ -47,18 +47,24 @@ public:
             : resolve(std::move(res)), reject(std::move(rej)) {}
     };
 
-    Pistache::Async::Promise<std::pair<bool, std::deque<std::string>>>
+    Pistache::Async::Promise<std::deque<std::string>>
     PCommand(std::string cmd, std::deque<std::string> args) {
-        return Pistache::Async::Promise<
-            std::pair<bool, std::deque<std::string>>>(
+        return Pistache::Async::Promise<std::deque<std::string>>(
             [&, this](Pistache::Async::Resolver &resolve,
                       Pistache::Async::Rejection &reject) {
-                auto w = new Wrap(std::move(resolve), std::move(reject));
-                Command(cmd, args, [w](bool res, std::deque<std::string> vals) {
-                    w->resolve(std::make_pair(res, vals));
-                    delete w;
-                });
-
+                std::shared_ptr<Wrap> w(
+                    new Wrap(std::move(resolve), std::move(reject)));
+                auto cb = [](bool res, std::deque<std::string> vals,
+                             std::shared_ptr<Wrap> sp) {
+                    if (res) {
+                        sp->resolve(vals);
+                    } else {
+                        sp->reject(vals);
+                    }
+                };
+                auto wrap_cb = std::bind(cb, std::placeholders::_1,
+                                         std::placeholders::_2, w);
+                Command(cmd, args, wrap_cb);
             });
     }
 
@@ -187,18 +193,14 @@ void seq_test(RedisClientPool &pool, int total, std::function<void()> counter) {
         // std::cout << "set key: " << i << std::endl;
         pool.PCommand("SET", {std::to_string(i), std::to_string(i)})
             .then(
-                [&pool, i,
-                 counter](std::pair<bool, std::deque<std::string>> res) {
+                [&pool, i, counter](std::deque<std::string> res) {
                     // counter();
                     return pool.PCommand(
                         "SET", {std::to_string(i), std::to_string(i)});
                 },
                 [counter](std::exception_ptr ptr) {})
             .then(
-                [&pool, i,
-                 counter](std::pair<bool, std::deque<std::string>> res) {
-                    counter();
-                },
+                [&pool, i, counter](std::deque<std::string> res) { counter(); },
                 [counter](std::exception_ptr ptr) {});
 
         // pool.Command("SET", {std::to_string(i), std::to_string(i)},
