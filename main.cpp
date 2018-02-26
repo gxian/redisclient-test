@@ -40,15 +40,14 @@ public:
         }
     }
 
-    struct Wrap {
-        Pistache::Async::Resolver resolve;
-        Pistache::Async::Rejection reject;
-        Wrap(Pistache::Async::Resolver res, Pistache::Async::Rejection rej)
-            : resolve(std::move(res)), reject(std::move(rej)) {}
-    };
-
     Pistache::Async::Promise<std::deque<std::string>>
     PCommand(std::string cmd, std::deque<std::string> args) {
+        struct Wrap {
+            Pistache::Async::Resolver resolve;
+            Pistache::Async::Rejection reject;
+            Wrap(Pistache::Async::Resolver res, Pistache::Async::Rejection rej)
+                : resolve(std::move(res)), reject(std::move(rej)) {}
+        };
         return Pistache::Async::Promise<std::deque<std::string>>(
             [&, this](Pistache::Async::Resolver &resolve,
                       Pistache::Async::Rejection &reject) {
