@@ -270,6 +270,21 @@ void guild_member_test(RedisClientPool &pool, int total,
     }
 }
 
+void hmget(RedisClientPool &pool, int total, std::function<void()> counter) {
+    for (int i = 0; i < total; ++i) {
+        pool.PCommand("HMGET", {"test", "k1", "k2", "k3", "k4", "k5"})
+            .then(
+                [i, counter](std::deque<std::string> res) {
+                    std::cout << "hmget res len: " << res.size() << std::endl;
+                    for (auto &j : res) {
+                        std::cout << "hmget res item: " << j << std::endl;
+                    }
+                    counter();
+                },
+                Pistache::Async::NoExcept);
+    }
+}
+
 int main(int argc, char *argv[]) {
     if (argc != 5) {
         return 1;
@@ -300,7 +315,8 @@ int main(int argc, char *argv[]) {
     pool.Connect([&pool, total, counter](bool res) {
         std::cout << "connect result: " << res << std::endl;
         // guild_member_test(pool, total, counter);
-        seq_test(pool, total, counter);
+        // seq_test(pool, total, counter);
+        hmget(pool, total, counter);
     });
     ios->run();
     return 0;
