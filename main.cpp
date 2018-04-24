@@ -2,6 +2,7 @@
 #include "redisclient/redisasyncclient.h"
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/ip/address.hpp>
+#include <boost/coroutine/all.hpp>
 #include <chrono>
 #include <cinttypes>
 #include <ctime>

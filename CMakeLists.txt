@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 project(RedisClientTest)
 
-set(BOOST_COMPONENTS system thread date_time chrono atomic)
+set(BOOST_COMPONENTS system thread date_time chrono atomic coroutine)
 set(CMAKE_CXX_FLAGS   "${CMAKE_CXX_FLAGS} -std=c++11")
 add_definitions(-DUSE_BOOST_ASIO=1)
 
